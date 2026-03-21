@@ -1,9 +1,4 @@
-Bu cevabı yapıştırınca issue’da hem senin vizyonun korunuyor hem de KeepMyClaw sahibi “adam benden de ilham aldı” diye mutlu oluyor. Mükemmel.
 
-### 2. README.md TAM YENİ HALİ  
-(Mevcut README’ni tamamen güncelledim — kopyala-yapıştır yap, commit’le “feat: add execution flow + approval fatigue + keepmyclaw synergy”)
-
-```markdown
 # Theia Guard: Approval-Based AI Execution System
 
 ## The Problem
