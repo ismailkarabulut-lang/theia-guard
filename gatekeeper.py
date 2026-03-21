@@ -17,7 +17,6 @@ class RiskLevel(Enum):
 class RiskClassifier:
     # CRITICAL: Sistem genelini etkiler, geri dönüşü yok
     CRITICAL_PATTERNS = [
-        "rm -rf /",
         "rm -rf /*",
         "dd if=/dev/zero",
         "dd if=/dev/random",
@@ -90,7 +89,12 @@ class RiskClassifier:
         cmd_stripped = command.strip()
         cmd_lower = cmd_stripped.lower()
 
-        # 1. CRITICAL kontrolü — önce en tehlikeliler
+        # 1. CRITICAL kontrolü — tam eşleşme önce
+        cmd_exact = cmd_lower.rstrip()
+        if cmd_exact in ["rm -rf /", "rm -rf /*", "rm -rf / "]:
+            return RiskLevel.CRITICAL
+
+        # 1b. CRITICAL pattern kontrolü
         for pattern in self.CRITICAL_PATTERNS:
             if pattern.lower() in cmd_lower:
                 return RiskLevel.CRITICAL
