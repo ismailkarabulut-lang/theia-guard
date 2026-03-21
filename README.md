@@ -87,3 +87,5 @@ High Risk (rm -rf ~, email deletion, sudo) → phone notification + mandatory �
 
 The Gatekeeper calculates risk score based on actual impact area.
 The user never has to mindlessly click “Approve” on everything.
+The Gatekeeper calculates risk score based on actual impact area.
+The user never has to mindlessly click “Approve” on everything.
