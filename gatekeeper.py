@@ -1,33 +1,180 @@
 import subprocess
-import sys
+import shlex
+import json
+import hashlib
+import datetime
+from enum import Enum
+from pathlib import Path
 
-DANGEROUS_COMMANDS = ["rm", "sudo", "dd", "mkfs", "chmod", "chown"]
+class RiskLevel(Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
 
-def ask_approval(command):
-    print("\n⚠️  THEIA GUARD - ONAY GEREKİYOR")
-    print(f"   Komut: {command}")
-    response = input("   Onaylıyor musun? (evet/hayır): ").strip().lower()
-    return response == "evet"
+class RiskClassifier:
+    HIGH_PATTERNS = ["rm -rf", "rm -r", "rmdir", "dd if=", "mkfs", "fdisk", "sudo rm", "sudo dd", "sudo mkfs", "DROP TABLE", "DROP DATABASE", "DELETE FROM", "TRUNCATE", "chmod 777", "chmod -R 777", "> /dev/sda", "shred"]
+    MEDIUM_PATTERNS = ["apt install", "apt remove", "apt purge", "pip install", "pip uninstall", "npm install", "npm uninstall", "yum install", "dnf install", "systemctl stop", "systemctl disable", "sudo", "su -", "UPDATE ", "INSERT INTO", "mv ", "cp -r"]
+    CRITICAL_PATTERNS = ["rm -rf /", "rm -rf /*", "dd if=/dev/zero", "dd if=/dev/random", "mkfs.ext4 /dev/", "mkfs.ntfs /dev/", "> /dev/sda", "> /dev/nvme", "chmod -R 000 /", "chown -R root /"]
 
-def run(command):
-    parts = command.strip().split()
-    if not parts:
-        return
+    def classify(self, command):
+        cmd_lower = command.lower().strip()
+        for pattern in self.CRITICAL_PATTERNS:
+            if pattern.lower() in cmd_lower:
+                return RiskLevel.CRITICAL
+        for pattern in self.HIGH_PATTERNS:
+            if pattern.lower() in cmd_lower:
+                return RiskLevel.HIGH
+        for pattern in self.MEDIUM_PATTERNS:
+            if pattern.lower() in cmd_lower:
+                return RiskLevel.MEDIUM
+        if self._has_injection_risk(command):
+            return RiskLevel.HIGH
+        return RiskLevel.LOW
 
-    if parts[0] in DANGEROUS_COMMANDS:
-        if not ask_approval(command):
-            print("❌ Reddedildi. Komut çalıştırılmadı.")
-            return
-        print("✅ Onaylandı. Çalıştırılıyor...")
-    
-    subprocess.run(command, shell=True)
+    def _has_injection_risk(self, command):
+        indicators = ["; rm", "; sudo", "; dd", "&& rm", "&& sudo", "&& dd", "|| rm", "|| sudo", "| bash", "| sh"]
+        return any(ind in command.lower() for ind in indicators)
 
-if __name__ == "__main__":
-    print("🛡️  Theia Guard aktif. Çıkmak için Ctrl+C")
+class SandboxExecutor:
+    def __init__(self, dry_run=False):
+        self.dry_run = dry_run
+
+    def execute(self, command):
+        try:
+            parts = shlex.split(command)
+            if not parts:
+                return {"success": False, "output": "", "error": "Empty command"}
+            if self.dry_run:
+                return {"success": True, "output": "[DRY RUN] Would execute: " + command, "error": ""}
+            result = subprocess.run(parts, capture_output=True, text=True, timeout=30, shell=False)
+            return {"success": result.returncode == 0, "output": result.stdout, "error": result.stderr}
+        except subprocess.TimeoutExpired:
+            return {"success": False, "output": "", "error": "Timeout (30s)"}
+        except FileNotFoundError:
+            return {"success": False, "output": "", "error": "Command not found: " + parts[0]}
+        except Exception as e:
+            return {"success": False, "output": "", "error": str(e)}
+
+class AuditLog:
+    def __init__(self, log_path="theia_guard_log.json"):
+        self.log_path = Path(log_path)
+
+    def log(self, command, risk, decision, output=""):
+        entry = {"timestamp": datetime.datetime.now().isoformat(), "command": command, "risk_level": risk.value, "decision": decision, "output_summary": output[:200] if output else "", "command_hash": hashlib.sha256(command.encode()).hexdigest()[:12]}
+        entries = []
+        if self.log_path.exists():
+            try:
+                entries = json.loads(self.log_path.read_text())
+            except json.JSONDecodeError:
+                entries = []
+        entries.append(entry)
+        self.log_path.write_text(json.dumps(entries, indent=2, ensure_ascii=False))
+
+    def get_stats(self):
+        if not self.log_path.exists():
+            return {"total": 0}
+        entries = json.loads(self.log_path.read_text())
+        return {"total": len(entries), "approved": sum(1 for e in entries if "approved" in e["decision"]), "denied": sum(1 for e in entries if e["decision"] == "denied"), "high_risk_count": sum(1 for e in entries if e["risk_level"] in ["high", "critical"])}
+
+class ApprovalGate:
+    def __init__(self, dry_run=False):
+        self.classifier = RiskClassifier()
+        self.executor = SandboxExecutor(dry_run=dry_run)
+        self.audit = AuditLog()
+
+    def process(self, command):
+        risk = self.classifier.classify(command)
+        print("")
+        print("=" * 50)
+        print("THEIA GUARD")
+        print("=" * 50)
+        print("Komut:      " + command)
+        print("Risk:       " + risk.value.upper())
+        print("=" * 50)
+        if risk == RiskLevel.LOW:
+            print("Dusuk risk. Otomatik calistiriliyor...")
+            result = self.executor.execute(command)
+            self.audit.log(command, risk, "auto_approved", result["output"])
+            return result
+        elif risk == RiskLevel.MEDIUM:
+            print("Orta risk. Onay gerekiyor.")
+            if self._ask_approval(command, risk):
+                result = self.executor.execute(command)
+                self.audit.log(command, risk, "approved", result["output"])
+                return result
+            else:
+                self.audit.log(command, risk, "denied")
+                return {"success": False, "output": "", "error": "Denied by user"}
+        elif risk == RiskLevel.HIGH:
+            print("YUKSEK RISK! Dikkatli olun.")
+            if self._ask_approval(command, risk):
+                print("Emin misiniz? Bu islem geri alinamaz.")
+                if self._ask_approval(command, risk, confirm=True):
+                    result = self.executor.execute(command)
+                    self.audit.log(command, risk, "explicitly_approved", result["output"])
+                    return result
+                else:
+                    self.audit.log(command, risk, "denied_second_check")
+                    return {"success": False, "output": "", "error": "Denied on second check"}
+            else:
+                self.audit.log(command, risk, "denied")
+                return {"success": False, "output": "", "error": "Denied by user"}
+        elif risk == RiskLevel.CRITICAL:
+            print("KRITIK RISK. Bu komut engellendi.")
+            print("Eger gercekten yapmak istiyorsaniz:")
+            print("Manuel olarak terminalden calistirin.")
+            self.audit.log(command, risk, "blocked")
+            return {"success": False, "output": "", "error": "Blocked: critical risk"}
+
+    def _ask_approval(self, command, risk, confirm=False):
+        prompt = "   Onayliyor musunuz? (evet/hayir): "
+        if confirm:
+            prompt = "   Kesin olarak onayliyor musunuz? (EVET/hayir): "
+        try:
+            response = input(prompt).strip().lower()
+            if confirm:
+                return response == "evet"
+            return response in ("evet", "e", "yes", "y")
+        except (EOFError, KeyboardInterrupt):
+            return False
+
+def main():
+    import sys
+    dry_run = "--dry-run" in sys.argv
+    if dry_run:
+        print("DRY RUN MODE - Komutlar calistirilmayacak")
+        print("")
+    gate = ApprovalGate(dry_run=dry_run)
+    print("THEIA GUARD v2.0")
+    print("The High-Level External Intelligence Architect")
+    print("Approval-Based Execution Gate")
+    print("-----------------------------------------")
+    print("Cikmak icin: Ctrl+C")
+    print("Istatistikler: /stats")
+    print("Dry run: python3 gatekeeper.py --dry-run")
+    print("")
     while True:
         try:
-            cmd = input("\n> ")
-            run(cmd)
+            cmd = input("> ").strip()
+            if not cmd:
+                continue
+            if cmd == "/stats":
+                stats = gate.audit.get_stats()
+                print("")
+                print("Istatistikler:")
+                print("  Toplam:     " + str(stats.get("total", 0)))
+                print("  Onaylanan:  " + str(stats.get("approved", 0)))
+                print("  Reddedilen: " + str(stats.get("denied", 0)))
+                print("  Yuksek Risk:" + str(stats.get("high_risk_count", 0)))
+                continue
+            gate.process(cmd)
         except KeyboardInterrupt:
-            print("\nTheia Guard kapatıldı.")
+            print("")
+            print("Theia Guard kapatildi.")
+            stats = gate.audit.get_stats()
+            print("Oturum: " + str(stats.get("total", 0)) + " komut islendi.")
             sys.exit(0)
+
+if __name__ == "__main__":
+    main()
