@@ -127,6 +127,14 @@ Summer Yue’s experience was recoverable.
 
 The next one might not be.
 
+
+graph TD
+    A[Ajan - Intent & Plan] --> B[Risk Classification]
+    B --> C{Approval Gate?}
+    C -->|High Risk| D[User Onay - Phone/Telegram]
+    C -->|Low Risk| E[Sandbox Execution]
+    D --> E
+    E --> F[Logging + Rollback]
 ---
 
 ## Theia Guard
