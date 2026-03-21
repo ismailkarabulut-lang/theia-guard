@@ -3,6 +3,8 @@ import shlex
 import json
 import hashlib
 import datetime
+import os
+import time
 from enum import Enum
 from pathlib import Path
 
@@ -82,6 +84,7 @@ class ApprovalGate:
         self.classifier = RiskClassifier()
         self.executor = SandboxExecutor(dry_run=dry_run)
         self.audit = AuditLog()
+        self.use_telegram = os.environ.get("TELEGRAM_BOT_TOKEN") is not None or Path(".env").exists()
 
     def process(self, command):
         risk = self.classifier.classify(command)
@@ -99,33 +102,87 @@ class ApprovalGate:
             return result
         elif risk == RiskLevel.MEDIUM:
             print("Orta risk. Onay gerekiyor.")
-            if self._ask_approval(command, risk):
-                result = self.executor.execute(command)
-                self.audit.log(command, risk, "approved", result["output"])
-                return result
-            else:
-                self.audit.log(command, risk, "denied")
-                return {"success": False, "output": "", "error": "Denied by user"}
-        elif risk == RiskLevel.HIGH:
-            print("YUKSEK RISK! Dikkatli olun.")
-            if self._ask_approval(command, risk):
-                print("Emin misiniz? Bu islem geri alinamaz.")
-                if self._ask_approval(command, risk, confirm=True):
+            if self.use_telegram:
+                if self._telegram_approval(command, risk):
                     result = self.executor.execute(command)
-                    self.audit.log(command, risk, "explicitly_approved", result["output"])
+                    self.audit.log(command, risk, "approved_telegram", result["output"])
                     return result
                 else:
-                    self.audit.log(command, risk, "denied_second_check")
-                    return {"success": False, "output": "", "error": "Denied on second check"}
+                    self.audit.log(command, risk, "denied_telegram")
+                    return {"success": False, "output": "", "error": "Denied via Telegram"}
             else:
-                self.audit.log(command, risk, "denied")
-                return {"success": False, "output": "", "error": "Denied by user"}
+                if self._ask_approval(command, risk):
+                    result = self.executor.execute(command)
+                    self.audit.log(command, risk, "approved", result["output"])
+                    return result
+                else:
+                    self.audit.log(command, risk, "denied")
+                    return {"success": False, "output": "", "error": "Denied by user"}
+        elif risk == RiskLevel.HIGH:
+            print("YUKSEK RISK! Dikkatli olun.")
+            if self.use_telegram:
+                if self._telegram_approval(command, risk):
+                    print("Ilk onay alindi. Ikinci onay isteniyor...")
+                    if self._telegram_approval(command, risk, confirm=True):
+                        result = self.executor.execute(command)
+                        self.audit.log(command, risk, "explicitly_approved_telegram", result["output"])
+                        return result
+                    else:
+                        self.audit.log(command, risk, "denied_second_check_telegram")
+                        return {"success": False, "output": "", "error": "Denied on second check"}
+                else:
+                    self.audit.log(command, risk, "denied_telegram")
+                    return {"success": False, "output": "", "error": "Denied via Telegram"}
+            else:
+                if self._ask_approval(command, risk):
+                    print("Emin misiniz? Bu islem geri alinamaz.")
+                    if self._ask_approval(command, risk, confirm=True):
+                        result = self.executor.execute(command)
+                        self.audit.log(command, risk, "explicitly_approved", result["output"])
+                        return result
+                    else:
+                        self.audit.log(command, risk, "denied_second_check")
+                        return {"success": False, "output": "", "error": "Denied on second check"}
+                else:
+                    self.audit.log(command, risk, "denied")
+                    return {"success": False, "output": "", "error": "Denied by user"}
         elif risk == RiskLevel.CRITICAL:
             print("KRITIK RISK. Bu komut engellendi.")
             print("Eger gercekten yapmak istiyorsaniz:")
             print("Manuel olarak terminalden calistirin.")
             self.audit.log(command, risk, "blocked")
             return {"success": False, "output": "", "error": "Blocked: critical risk"}
+
+    def _telegram_approval(self, command, risk, confirm=False):
+        approval_path = Path("pending_approval.json")
+        label = "confirm" if confirm else "initial"
+        request = {"command": command, "risk_level": risk.value, "status": "pending", "timestamp": datetime.datetime.now().isoformat(), "label": label}
+        approval_path.write_text(json.dumps(request, indent=2, ensure_ascii=False))
+        print("Telegram'a onay talebi gonderildi...")
+        print("Telefonunuzu kontrol edin.")
+        timeout = 120
+        elapsed = 0
+        while elapsed < timeout:
+            time.sleep(1)
+            elapsed += 1
+            if approval_path.exists():
+                try:
+                    data = json.loads(approval_path.read_text())
+                    status = data.get("status", "")
+                    if status == "approved":
+                        approval_path.unlink()
+                        print("Telegram'dan onay alindi!")
+                        return True
+                    elif status == "denied":
+                        approval_path.unlink()
+                        print("Telegram'dan red alindi.")
+                        return False
+                except:
+                    pass
+        if approval_path.exists():
+            approval_path.unlink()
+        print("Zasam asimi. Onay alinamadi.")
+        return False
 
     def _ask_approval(self, command, risk, confirm=False):
         prompt = "   Onayliyor musunuz? (evet/hayir): "
@@ -146,13 +203,16 @@ def main():
         print("DRY RUN MODE - Komutlar calistirilmayacak")
         print("")
     gate = ApprovalGate(dry_run=dry_run)
-    print("THEIA GUARD v2.0")
+    print("THEIA GUARD v2.1")
     print("The High-Level External Intelligence Architect")
     print("Approval-Based Execution Gate")
     print("-----------------------------------------")
+    if gate.use_telegram:
+        print("Mod: Telegram Onay Kanali")
+    else:
+        print("Mod: Yerel Onay (stdin)")
     print("Cikmak icin: Ctrl+C")
     print("Istatistikler: /stats")
-    print("Dry run: python3 gatekeeper.py --dry-run")
     print("")
     while True:
         try:
