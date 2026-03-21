@@ -68,7 +68,6 @@ The gate lives **outside** the agent’s context window. No compression. No over
 ---
 
 ## Execution Flow
-
 ```mermaid
 graph TD
     A[Ajan - Intent & Plan] --> B[Risk Classification]
