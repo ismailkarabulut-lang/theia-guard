@@ -67,6 +67,18 @@ The gate lives **outside** the agent’s context window. No compression. No over
 
 ---
 
+## Preventing Approval Fatigue
+Not every action needs a phone buzz.
+Theia Guard uses smart risk classification based on real impact:
+
+Low Risk (/tmp/*, cache clearing) → automatic
+Medium Risk (apt install, system updates) → one-click summary approval
+High Risk (rm -rf ~, email deletion, sudo) → phone notification + mandatory “Approve” button
+
+The Gatekeeper calculates risk score based on actual impact area.
+The user never has to mindlessly click “Approve” on everything.
+
+
 ## Execution Flow
 
 ```mermaid
@@ -77,14 +89,3 @@ graph TD
     C -->|Low Risk| E[Sandbox Execution]
     D --> E
     E --> F[Logging & Rollback]
-
-Preventing Approval Fatigue
-Not every action needs a phone buzz.
-Theia Guard uses smart risk classification based on real impact:
-
-Low Risk (/tmp/*, cache clearing) → automatic
-Medium Risk (apt install, system updates) → one-click summary approval
-High Risk (rm -rf ~, email deletion, sudo) → phone notification + mandatory “Approve” button
-
-The Gatekeeper calculates risk score based on actual impact area.
-The user never has to mindlessly click “Approve” on everything.
