@@ -63,6 +63,34 @@ def deny():
         APPROVAL.write_text(json.dumps(data))
         return jsonify({"ok": True})
     return jsonify({"ok": False})
+import feedparser
 
+KEYWORDS = ["yapay zeka", "artificial intelligence", "AI", "LLM",
+            "ajan", "agent", "ChatGPT", "Claude", "Gemini"]
+
+RSS_FEEDS = [
+    "https://news.google.com/rss/search?q=yapay+zeka&hl=tr&gl=TR&ceid=TR:tr",
+    "https://news.google.com/rss/search?q=artificial+intelligence&hl=tr&gl=TR&ceid=TR:tr",
+]
+
+@app.route("/api/news")
+def news():
+    results = []
+    seen = set()
+    for url in RSS_FEEDS:
+        feed = feedparser.parse(url)
+        for entry in feed.entries[:15]:
+            title = entry.get("title", "")
+            link = entry.get("link", "")
+            if link in seen:
+                continue
+            seen.add(link)
+            if any(kw.lower() in title.lower() for kw in KEYWORDS):
+                results.append({
+                    "title": title,
+                    "link": link,
+                    "published": entry.get("published", "")
+                })
+    return jsonify(results[:20])
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
