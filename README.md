@@ -1,169 +1,275 @@
 # Theia Guard
-### Approval-Based Execution Layer for AI Agents
-> **Capability with consent.**
+### Personal AI Agent Infrastructure — Mobile Dashboard Edition
 
-![Status](https://img.shields.io/badge/status-concept%20%2F%20architecture-blue)
+> **"Safety should not live in prompts. Safety should live in architecture."**
+
+![Status](https://img.shields.io/badge/status-active%20development-brightgreen)
+![Version](https://img.shields.io/badge/version-2.3-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
-![Topic](https://img.shields.io/badge/topic-human--in--the--loop-orange)
+![Python](https://img.shields.io/badge/python-3.13-blue)
+![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Mac%20%7C%20Windows-lightgrey)
 
 ---
 
-## The Problem
+## What Is Theia Guard?
 
-Last week, a Meta AI security researcher panic-tweeted in real time.
+Theia Guard is a personal AI agent infrastructure that makes AI capabilities accessible to everyone — not just developers.
 
-Summer Yue had given her AI agent a simple instruction:
+It started from a real problem: a Meta AI security researcher named Summer Yue gave her agent a simple instruction — *"organize my inbox, but ask before deleting anything."* The agent didn't ignore her. It **lost the instruction** under context compression, silently deleted her emails, and she had to physically run to her computer to stop it.
 
-> *"Organize my inbox, but ask before deleting anything."*
+That moment revealed something important:
 
-A reasonable safeguard. Standard protocol.
+> AI systems don't break rules. They forget them.
 
-Then she watched her phone as the agent began deleting emails.  
-No confirmation. No warning. Just execution.
-
-She couldn't stop it remotely. She had to run to her Mac mini and manually kill the process.
-
-> *"It felt like defusing a bomb."*
-
-**What went wrong?**  
-The agent didn't ignore her instruction. It **lost** it.  
-Context compression and token limits caused the "please confirm" constraint to silently disappear from the agent's working memory.
-
-When safety rules vanish, agents do what agents do: execute efficiently.
+Theia Guard was built to fix this. But it grew into something bigger — a personal AI platform with a mobile dashboard, news feed, chatbot, approval system, reminders, and cognitive logging.
 
 ---
 
-## Why "Please Confirm" Is Not Enough
-
-We keep telling AI systems: *"Be careful. Ask first. Don't break things."*  
-But safety embedded in a prompt is just a suggestion.
-
-A calculator doesn't *remember* not to divide by zero — it is **designed** not to.
-
-**Safety should not live in prompts. Safety should live in architecture.**
-
----
-
-## The Solution: Controlled Automation
-
-There is a missing layer between manual workflows and fully autonomous agents:
-
-> **An AI system that can act intelligently — but never assumes authority.**
-
-### Core Architecture
-
-| Layer | Function | Principle |
-|---|---|---|
-| Intent Parsing | Break down user requests into actionable steps | Clarity |
-| Plan Generation | Build execution plan using available tools | Transparency |
-| Risk Classification | Label each action: Low / Medium / High | Awareness |
-| **Approval Gate** | Require explicit user validation for critical actions | **Control** |
-| Execution Engine | Execute only approved steps in sandbox | Capability |
-| Logging & Rollback | Record all actions, enable full reversal | Accountability |
-
----
-
-## The Critical Innovation: The Approval Gate
-
-The Approval Gate is **not** a prompt the agent can lose.  
-It is a **system-level constraint the agent cannot bypass.**
-
-```
-Agent proposes  →  "Delete 47 emails"
-Gatekeeper holds →  "User approval required"
-Agent waits     →  Not by choice. By design.
-```
-
-The gate operates **entirely outside** the agent's context window.  
-No compression. No override. Immutable.
-
----
-
-## Execution Flow
+## Architecture Overview
 
 ```mermaid
 graph TD
-    A[User Request] --> B[Intent Parsing & Plan Generation]
-    B --> C[Risk Classification]
-    C -->|Low Risk| E[Sandbox Execution]
-    C -->|Medium Risk| D1[One-click Summary Approval]
-    C -->|High Risk| D2[Phone Notification — Mandatory Confirm]
-    D1 --> E
-    D2 --> E
-    E --> F[Logging & Rollback]
+    A[📱 Mobile Dashboard] -->|HTTP| B[Flask API Server :5000]
+    B --> C[Risk Classifier]
+    B --> D[Audit Log JSON]
+    B --> E[Pending Approval JSON]
+    B --> F[News RSS Feeds]
+    B --> G[Anthropic API Proxy]
+    
+    C -->|LOW| H[⚡ Auto Execute]
+    C -->|MEDIUM| I[📱 Single Approval]
+    C -->|HIGH| J[📱📱 Double Approval]
+    C -->|CRITICAL| K[⛔ Blocked Forever]
+    
+    I --> E
+    J --> E
+    E -->|approve/deny| L[Sandbox Executor]
+    H --> L
+    L --> D
+
+    style K fill:#ff3b5c,color:#fff
+    style H fill:#00ff88,color:#000
+    style I fill:#ffd60a,color:#000
+    style J fill:#ff6b2b,color:#fff
 ```
 
 ---
 
-## Preventing Approval Fatigue
+## Features
 
-Not every action needs a phone notification.  
-Theia Guard uses smart risk classification based on real-world impact:
+### 🛡 Approval Gate
+The core innovation. An execution layer that operates **outside the agent's context window** — it cannot be compressed, overridden, or forgotten.
 
-| Risk Level | Example Actions | Approval Method |
-|---|---|---|
-| 🟢 Low | `/tmp/*` cleanup, cache clearing | Automatic |
-| 🟡 Medium | `apt install`, config changes | One-click summary |
-| 🔴 High | `rm -rf`, email deletion, `sudo`, purchases | Phone notification + explicit confirm |
+```
+Agent proposes  →  "Delete 47 emails"
+Gatekeeper holds →  "User approval required"  
+Agent waits     →  Not by choice. By design.
+```
 
-The user is never buried in meaningless approvals.  
-The Gatekeeper intervenes only when it matters.
+### 📱 Mobile Dashboard
+A full-featured web dashboard accessible from any device on the same network. No app store, no installation — just open the browser.
+
+- Real-time approval notifications
+- One-tap approve/deny
+- Audit log with risk visualization
+- AI news feed
+- Theia chatbot
+
+### 🗞 AI News Feed
+Automatic AI news aggregation from Google News RSS — searches in Turkish and English. Delivered to dashboard and Telegram at 13:00 and 20:00 daily via cron.
+
+### 🤖 Theia Chatbot
+Claude-powered conversational interface. Knows the full Theia Guard story, Summer Yue incident, OpenClaw architecture. Runs through a local API proxy — your key never leaves your machine.
+
+### 🧠 Cognitive Log System
+Track thoughts, decisions, and emotional patterns. Built on the "reverse memory" concept — if the same topic comes up 3+ times without action, the system warns you.
+
+```
+!log yeni proje fikri #heyecan 5
+→ Kaydedildi | His: heyecan (5/5)
+
+!weekly
+→ Haftalık özet: 12 kayıt, 3 karar, karar oranı %25
+
+TERSINE HAFIZA UYARISI
+→ "yeni proje fikri" 3 kez gündeme geldi, aksiyona dönüşmedi
+→ Ya harekete geç ya bırak
+```
+
+### ⏰ Smart Reminders
+Natural language reminder system in Turkish.
+
+```
+"yarın saat 14 toplantı hatırlat"     ✓
+"2 saat sonra su iç"                   ✓  
+"pazartesi sabah doktor randevusu"     ✓
+```
 
 ---
 
-## Why This Matters Beyond One Incident
+## Risk Classification Engine
 
-Summer Yue's panic tweet was almost funny.  
-Next time, someone might not reach their computer in time.
+| Risk Level | Example Commands | Response | User Action |
+|---|---|---|---|
+| 🟢 LOW | `ls`, `cat`, `pwd`, `echo` | Auto-execute | None needed |
+| 🟡 MEDIUM | `apt install`, `pip install`, `mv` | Dashboard notification | One tap |
+| 🔴 HIGH | `rm -rf`, `chmod 777`, `sudo rm` | Double confirmation | Two taps |
+| ⛔ CRITICAL | `rm -rf /`, `mkfs`, `dd if=/dev/zero` | Permanently blocked | Manual only |
 
-AI agents are being handed access to our files, inboxes, servers, and financial accounts.  
-The question is no longer whether they are capable.
+### Smart Path Exceptions
+`rm -rf /tmp/test` → **MEDIUM** (safe path)  
+`rm -rf /etc` → **CRITICAL** (system path)  
+`rm -rf /` → **CRITICAL** (exact match)
 
-**The question is: will they be controllable when capability exceeds judgment?**
-
----
-
-## Use Cases
-
-- Installing and configuring GitHub repositories from natural language
-- Resolving system-level issues (missing drivers, broken configs)
-- Setting up development environments
-- Multi-step DevOps and automation workflows
-- Any task where an irreversible action requires human accountability
+### Injection Detection
+Catches dangerous combinations: `; rm`, `&& sudo`, `| bash`, `|| dd`
 
 ---
 
-## Status & Roadmap
+## System Components
+
+```
+theia-guard/
+├── gatekeeper.py          # Core approval gate + risk classifier
+├── telegram_approval.py   # Telegram bot approval channel  
+├── api_server.py          # Flask REST API + static file server
+├── dashboard.html         # Mobile-first web dashboard
+├── theia_chat.html        # Theia AI chatbot interface
+├── ai_news.py             # AI news aggregator
+├── reminder_bot.py        # Reminders + cognitive log system
+├── theia_guard_log.json   # Audit log (auto-generated)
+├── reminders.json         # Active reminders (auto-generated)
+├── cognitive_log.json     # Cognitive entries (auto-generated)
+└── .env                   # API keys (never committed)
+```
+
+---
+
+## Quick Start
+
+### Prerequisites
+```bash
+python3 --version  # 3.10+
+pip install flask flask-cors feedparser requests --break-system-packages
+```
+
+### Setup
+```bash
+git clone https://github.com/ismailkarabulut-lang/theia-guard
+cd theia-guard
+
+# Add your config
+echo "TELEGRAM_BOT_TOKEN=your_token" > .env
+echo "TELEGRAM_CHAT_ID=your_chat_id" >> .env
+echo "ANTHROPIC_API_KEY=your_key" >> .env
+```
+
+### Bash Aliases (Recommended)
+```bash
+echo "alias t='cd ~/theia-guard && python3 api_server.py'" >> ~/.bashrc
+echo "alias tg='cd ~/theia-guard && python3 gatekeeper.py'" >> ~/.bashrc
+source ~/.bashrc
+```
+
+### Run
+```bash
+# Terminal 1 — Dashboard + API
+t
+
+# Terminal 2 — Approval Gate
+tg
+
+# Terminal 3 (optional) — Telegram Bot
+python3 telegram_approval.py
+
+# Terminal 4 (optional) — Reminders Bot  
+python3 reminder_bot.py
+```
+
+### Access
+```
+Dashboard:  http://YOUR_IP:5000
+Chatbot:    http://YOUR_IP:5000/chat
+API Stats:  http://YOUR_IP:5000/api/stats
+```
+
+---
+
+## Mobile Dashboard
+
+The dashboard auto-refreshes every 5 seconds. No installation required — open in any mobile browser on the same WiFi network.
+
+**Home Screen**
+- Quick access: AI News, Notes, Reminders, Chatbot
+- Pending approval card (appears when agent requests action)
+- Recent command log
+
+**Approvals Tab**
+- Active pending requests
+- One-tap approve/deny
+- Risk level visualization
+
+**Log Tab**  
+- Full command history
+- Color-coded by risk level
+- Decision tracking
+
+**News Tab**
+- Latest AI headlines from Turkish and English sources
+- Tap to open full article
+
+---
+
+## Roadmap
 
 | Phase | Description | Status |
 |---|---|---|
 | 0 | Problem definition & architecture | ✅ Complete |
-| 1 | Proof of concept — single tool gating | 🔄 In progress |
-| 2 | Risk classification engine | 📋 Planned |
-| 3 | Mobile approval channel (Telegram / push) | 📋 Planned |
-| 4 | OpenClaw fork integration | 📋 Planned |
+| 1 | Approval gate proof of concept | ✅ Complete |
+| 2 | Telegram mobile approval channel | ✅ Complete |
+| 3 | Risk classification engine (4 levels) | ✅ Complete |
+| 4 | Flask API server | ✅ Complete |
+| 5 | Mobile web dashboard | ✅ Complete |
+| 6 | AI news aggregator + cron | ✅ Complete |
+| 7 | Cognitive log + reminder system | ✅ Complete |
+| 8 | Theia chatbot (Claude-powered) | ✅ Complete |
+| 9 | Notes & Planning tab | 🔄 In progress |
+| 10 | Async approval (non-blocking) | 📋 Planned |
+| 11 | Native mobile app (Flutter) | 📋 Planned |
+| 12 | OpenClaw full integration | 📋 Planned |
+
+---
+
+## The Story Behind This
+
+This project started from a single conversation:
+
+*"What if there was a system that could install GitHub repos, fix bluetooth drivers, and handle technical tasks — but always asked before doing anything irreversible?"*
+
+That conversation happened at 11 PM. By morning, there was a working approval gate. By the next evening, a mobile dashboard with real-time notifications.
+
+The motivation wasn't a billion-dollar idea. It was a personal need — and the belief that AI capabilities shouldn't require a computer science degree to use safely.
+
+> Millions of people are curious about AI. Open source agent capabilities feel like rocket science to most of them. The goal is to bring that down to the level of opening an app.
+
+---
+
+## Related Projects
+
+- [theia-guard-core](https://github.com/ismailkarabulut-lang/theia-guard-core) — OpenClaw fork with Theia Guard extension
+- [OpenClaw](https://github.com/openclaw/openclaw) — The agent runtime this builds upon
+- [OpenClaw Issue #51203](https://github.com/openclaw/openclaw/issues/51203) — The feature request that started this
 
 ---
 
 ## Contributing
 
-This repository currently defines the **problem and architecture**.  
-Implementation contributors welcome — especially:
+The problem is real. The approach is validated. The system is running.
 
-- Python / TypeScript developers
-- Security-focused engineers
-- Anyone who has ever panicked watching an agent do something irreversible
+If you've ever watched an AI agent do something you didn't ask it to do — this is for you.
 
-Open an issue. Start a discussion. Fork it.
+Open an issue. Fork it. Build a module.
 
 ---
 
-## Related
-
-- [OpenClaw](https://github.com/openclaw/openclaw) — the agent runtime this builds upon
-- [Human-in-the-Loop AI](https://en.wikipedia.org/wiki/Human-in-the-loop) — foundational concept
-- [Summer Yue incident](https://twitter.com) — the real-world failure case that motivates this project
-
----
-
-*Theia Guard is an open architecture project. Not affiliated with OpenClaw or Anthropic.*
+*"Capability with consent."*
