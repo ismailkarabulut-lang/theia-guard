@@ -92,5 +92,33 @@ def news():
                     "published": entry.get("published", "")
                 })
     return jsonify(results[:20])
+@app.route("/chat")
+def chat_page():
+    return send_file(Path.home() / "Masaüstü" / "theia-guard" / "theia_chat.html")
+import requests as req
+@app.route("/api/chat", methods=["POST"])
+def chat_proxy():
+    import os
+    key = ""
+    env_path = Path.home() / "Masaüstü" / "theia-guard" / ".env"
+    if env_path.exists():
+        for line in env_path.read_text().splitlines():
+            if line.startswith("ANTHROPIC_API_KEY="):
+                key = line.split("=", 1)[1].strip()
+    if not key:
+        return jsonify({"error": "API key bulunamadı"}), 500
+    data = request.get_json()
+    r = req.post(
+        "https://api.anthropic.com/v1/messages",
+        headers={
+            "x-api-key": key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        },
+        json=data,
+        timeout=30
+    )
+    return jsonify(r.json())
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
+

@@ -15,7 +15,6 @@ class RiskLevel(Enum):
     CRITICAL = "critical"
 
 class RiskClassifier:
-    # CRITICAL: Sistem genelini etkiler, geri dönüşü yok
     CRITICAL_PATTERNS = [
         "rm -rf /*",
         "dd if=/dev/zero",
@@ -33,7 +32,6 @@ class RiskClassifier:
         "rm -rf /boot",
     ]
 
-    # HIGH: Tehlikeli ama hedefli — onay + ikinci onay
     HIGH_PATTERNS = [
         "rm -rf",
         "rm -r",
@@ -53,7 +51,6 @@ class RiskClassifier:
         "> /dev/sda",
     ]
 
-    # MEDIUM: Sistem değiştirir ama geri alınabilir — tek onay
     MEDIUM_PATTERNS = [
         "sudo apt install",
         "sudo apt remove",
@@ -82,40 +79,37 @@ class RiskClassifier:
         "cp -r",
     ]
 
-    # SAFE_PATHS: Bu yollardaki rm komutları HIGH değil MEDIUM
     SAFE_PATHS = ["/tmp/", "/var/tmp/", "/var/cache/", "~/.cache/"]
 
     def classify(self, command):
         cmd_stripped = command.strip()
         cmd_lower = cmd_stripped.lower()
 
-        # 1. CRITICAL kontrolü — tam eşleşme önce
+        # 1. Tam eslesme kontrolu - rm -rf / gibi
         cmd_exact = cmd_lower.rstrip()
         if cmd_exact in ["rm -rf /", "rm -rf /*", "rm -rf / "]:
             return RiskLevel.CRITICAL
 
-        # 1b. CRITICAL pattern kontrolü
+        # 2. CRITICAL pattern kontrolu
         for pattern in self.CRITICAL_PATTERNS:
             if pattern.lower() in cmd_lower:
                 return RiskLevel.CRITICAL
 
-        # 2. HIGH kontrolü — ama safe path istisnası var
+        # 3. HIGH kontrolu - safe path istisnasi var
         for pattern in self.HIGH_PATTERNS:
             if pattern.lower() in cmd_lower:
-                # rm -rf /tmp/... gibi güvenli yol istisnası
                 if "rm" in cmd_lower:
                     if any(safe in cmd_lower for safe in self.SAFE_PATHS):
                         return RiskLevel.MEDIUM
                 return RiskLevel.HIGH
 
-        # 3. MEDIUM kontrolü — daha uzun/spesifik pattern'lar önce
-        # sudo apt install gibi kombinasyonları önce yakala
+        # 4. MEDIUM kontrolu - uzun patternlar once
         sorted_medium = sorted(self.MEDIUM_PATTERNS, key=len, reverse=True)
         for pattern in sorted_medium:
             if pattern.lower() in cmd_lower:
                 return RiskLevel.MEDIUM
 
-        # 4. Injection riski kontrolü
+        # 5. Injection riski
         if self._has_injection_risk(command):
             return RiskLevel.HIGH
 
@@ -150,11 +144,7 @@ class SandboxExecutor:
                     timeout=120,
                     shell=True
                 )
-                return {
-                    "success": result.returncode == 0,
-                    "output": "",
-                    "error": ""
-                }
+                return {"success": result.returncode == 0, "output": "", "error": ""}
             else:
                 result = subprocess.run(
                     parts,
@@ -169,7 +159,7 @@ class SandboxExecutor:
                     "error": result.stderr
                 }
         except subprocess.TimeoutExpired:
-            return {"success": False, "output": "", "error": "Timeout (30s)"}
+            return {"success": False, "output": "", "error": "Timeout"}
         except FileNotFoundError:
             return {"success": False, "output": "", "error": "Command not found: " + parts[0]}
         except Exception as e:
@@ -200,13 +190,14 @@ class AuditLog:
 
     def get_stats(self):
         if not self.log_path.exists():
-            return {"total": 0}
+            return {"total": 0, "approved": 0, "denied": 0, "blocked": 0, "auto": 0}
         entries = json.loads(self.log_path.read_text())
         return {
             "total": len(entries),
-            "approved": sum(1 for e in entries if "approved" in e["decision"]),
-            "denied": sum(1 for e in entries if e["decision"] == "denied"),
-            "high_risk_count": sum(1 for e in entries if e["risk_level"] in ["high", "critical"])
+            "auto": sum(1 for e in entries if e["decision"] == "auto_approved"),
+            "approved": sum(1 for e in entries if "approved" in e["decision"] and e["decision"] != "auto_approved"),
+            "denied": sum(1 for e in entries if "denied" in e["decision"]),
+            "blocked": sum(1 for e in entries if e["decision"] == "blocked"),
         }
 
 
@@ -251,7 +242,7 @@ class ApprovalGate:
                 decision = "denied_telegram" if self.use_telegram else "denied"
                 self.audit.log(command, risk, decision)
                 print("Komut iptal edildi.")
-                return {"success": False, "output": "", "error": "Denied by user"}
+                return {"success": False, "output": "", "error": "Denied"}
 
         elif risk == RiskLevel.HIGH:
             print("YUKSEK RISK! Dikkatli olun.")
@@ -267,12 +258,12 @@ class ApprovalGate:
                     return result
                 else:
                     self.audit.log(command, risk, "denied_second_check")
-                    print("Ikinci onay reddedildi. Komut iptal edildi.")
+                    print("Ikinci onay reddedildi.")
                     return {"success": False, "output": "", "error": "Denied on second check"}
             else:
                 self.audit.log(command, risk, "denied")
                 print("Komut iptal edildi.")
-                return {"success": False, "output": "", "error": "Denied by user"}
+                return {"success": False, "output": "", "error": "Denied"}
 
         elif risk == RiskLevel.CRITICAL:
             print("KRITIK RISK. Bu komut engellendi.")
@@ -331,7 +322,7 @@ class ApprovalGate:
 
         if approval_path.exists():
             approval_path.unlink()
-        print("Zaman asimi. Onay alinamadi. Komut iptal edildi.")
+        print("Zaman asimi. Komut iptal edildi.")
         return False
 
     def _ask_approval(self, command, risk, confirm=False):
@@ -348,6 +339,19 @@ class ApprovalGate:
             return False
 
 
+def print_session_summary(stats):
+    print("")
+    print("=" * 40)
+    print("OTURUM OZETI")
+    print("=" * 40)
+    print("  Toplam:       " + str(stats.get("total", 0)))
+    print("  Otomatik:     " + str(stats.get("auto", 0)) + "  (LOW)")
+    print("  Onaylanan:    " + str(stats.get("approved", 0)) + "  (MEDIUM/HIGH)")
+    print("  Reddedilen:   " + str(stats.get("denied", 0)))
+    print("  Engellenen:   " + str(stats.get("blocked", 0)) + "  (CRITICAL)")
+    print("=" * 40)
+
+
 def main():
     import sys
     dry_run = "--dry-run" in sys.argv
@@ -358,7 +362,7 @@ def main():
 
     gate = ApprovalGate(dry_run=dry_run)
 
-    print("THEIA GUARD v2.2")
+    print("THEIA GUARD v2.3")
     print("Approval-Based Execution Gate")
     print("-" * 40)
     if gate.use_telegram:
@@ -376,19 +380,14 @@ def main():
                 continue
             if cmd == "/stats":
                 stats = gate.audit.get_stats()
-                print("")
-                print("Istatistikler:")
-                print("  Toplam:      " + str(stats.get("total", 0)))
-                print("  Onaylanan:   " + str(stats.get("approved", 0)))
-                print("  Reddedilen:  " + str(stats.get("denied", 0)))
-                print("  Yuksek Risk: " + str(stats.get("high_risk_count", 0)))
+                print_session_summary(stats)
                 continue
             gate.process(cmd)
         except KeyboardInterrupt:
             print("")
             print("Theia Guard kapatildi.")
             stats = gate.audit.get_stats()
-            print("Oturum: " + str(stats.get("total", 0)) + " komut islendi.")
+            print_session_summary(stats)
             sys.exit(0)
 
 
