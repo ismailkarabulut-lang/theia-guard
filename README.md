@@ -267,5 +267,3 @@ Open an issue. Fork it. Build a module.
 
 *"Capability with consent."*
 ```
-
-Bunu yapıştırıp kaydettiğinde belgelendirme işi de sıfır eforla çözülmüş olacak. Metni güncelledikten sonra repoyu GitHub'a göndermek ister misin?
