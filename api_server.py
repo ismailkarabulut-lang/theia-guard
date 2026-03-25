@@ -2,11 +2,12 @@ from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 from pathlib import Path
 import json
+from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)
 
-BASE = Path.home() / "Masaüstü" / "theia-guard-core"
+BASE = Path.home() / "Masaüstü" / "theia-guard"
 LOG = BASE / "theia_guard_log.json"
 APPROVAL = BASE / "pending_approval.json"
 DASHBOARD = Path.home() / "Masaüstü" / "theia-guard" / "dashboard.html"
@@ -42,7 +43,7 @@ def logs():
 @app.route("/api/pending")
 def pending():
     data = read_json(APPROVAL)
-    if isinstance(data, dict) and data.get("status") == "pending":
+    if isinstance(data, dict) and data.get("status") in ("pending", "sent"):
         return jsonify(data)
     return jsonify(None)
 
