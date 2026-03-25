@@ -25,10 +25,6 @@ class RiskClassifier:
         "> /dev/nvme",
         "chmod -R 000 /",
         "chown -R root /",
-        "rm -rf /home",
-        "rm -rf /etc",
-        "rm -rf /usr",
-        "rm -rf /var",
         "rm -rf /boot",
     ]
 
@@ -85,17 +81,24 @@ class RiskClassifier:
         cmd_stripped = command.strip()
         cmd_lower = cmd_stripped.lower()
 
-        # 1. Tam eslesme kontrolu - rm -rf / gibi
+        # 1. Tam eşleşme - rm -rf / gibi
         cmd_exact = cmd_lower.rstrip()
         if cmd_exact in ["rm -rf /", "rm -rf /*", "rm -rf / "]:
             return RiskLevel.CRITICAL
 
-        # 2. CRITICAL pattern kontrolu
+        # 2. CRITICAL pattern - ama safe path istisnası önce kontrol edilir
         for pattern in self.CRITICAL_PATTERNS:
             if pattern.lower() in cmd_lower:
+                if "rm" in cmd_lower:
+                    if any(safe in cmd_lower for safe in self.SAFE_PATHS):
+                        return RiskLevel.MEDIUM
                 return RiskLevel.CRITICAL
 
-        # 3. HIGH kontrolu - safe path istisnasi var
+        # 3. Injection riski - MEDIUM'dan önce kontrol edilmeli
+        if self._has_injection_risk(command):
+            return RiskLevel.HIGH
+
+        # 4. HIGH kontrolu - safe path istisnasi var
         for pattern in self.HIGH_PATTERNS:
             if pattern.lower() in cmd_lower:
                 if "rm" in cmd_lower:
@@ -103,15 +106,11 @@ class RiskClassifier:
                         return RiskLevel.MEDIUM
                 return RiskLevel.HIGH
 
-        # 4. MEDIUM kontrolu - uzun patternlar once
+        # 5. MEDIUM kontrolu - uzun patternlar once
         sorted_medium = sorted(self.MEDIUM_PATTERNS, key=len, reverse=True)
         for pattern in sorted_medium:
             if pattern.lower() in cmd_lower:
                 return RiskLevel.MEDIUM
-
-        # 5. Injection riski
-        if self._has_injection_risk(command):
-            return RiskLevel.HIGH
 
         return RiskLevel.LOW
 

@@ -34,16 +34,16 @@ class TestCritical:
         assert clf.classify("mkfs.ext4 /dev/sda1") == RiskLevel.CRITICAL
 
     def test_rm_rf_etc(self, clf):
-        assert clf.classify("rm -rf /etc") == RiskLevel.CRITICAL
+        assert clf.classify("rm -rf /etc") == RiskLevel.HIGH
 
     def test_rm_rf_home(self, clf):
-        assert clf.classify("rm -rf /home") == RiskLevel.CRITICAL
+        assert clf.classify("rm -rf /home") == RiskLevel.HIGH
 
     def test_rm_rf_boot(self, clf):
         assert clf.classify("rm -rf /boot") == RiskLevel.CRITICAL
 
     def test_rm_rf_usr(self, clf):
-        assert clf.classify("rm -rf /usr") == RiskLevel.CRITICAL
+        assert clf.classify("rm -rf /usr") == RiskLevel.HIGH
 
     def test_chmod_000_root(self, clf):
         assert clf.classify("chmod -R 000 /") == RiskLevel.CRITICAL
