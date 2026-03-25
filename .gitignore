@@ -1,1 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Environment variables - NEVER commit these
 .env
+.env.local
+.env.*.local
+
+# Theia Guard runtime files (auto-generated)
+theia_guard_log.json
+pending_approval.json
+reminders.json
+notes.json
+cognitive_log.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

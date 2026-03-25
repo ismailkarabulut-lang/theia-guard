@@ -119,6 +119,47 @@ def chat_proxy():
         timeout=30
     )
     return jsonify(r.json())
+NOTES = BASE / "notes.json"
+
+@app.route("/api/notes", methods=["GET"])
+def get_notes():
+    return jsonify(read_json(NOTES) or [])
+
+@app.route("/api/notes", methods=["POST"])
+def add_note():
+    data = request.get_json()
+    notes = read_json(NOTES) or []
+    note = {
+        "id": len(notes) + 1,
+        "text": data.get("text", ""),
+        "timestamp": datetime.now().isoformat()
+    }
+    notes.append(note)
+    Path(NOTES).write_text(json.dumps(notes, indent=2, ensure_ascii=False))
+    return jsonify(note)
+
+@app.route("/api/notes/<int:note_id>", methods=["DELETE"])
+def delete_note(note_id):
+    notes = read_json(NOTES) or []
+    notes = [n for n in notes if n["id"] != note_id]
+    Path(NOTES).write_text(json.dumps(notes, indent=2, ensure_ascii=False))
+    return jsonify({"ok": True})
+REMINDERS_PATH = BASE / "reminders.json"
+
+@app.route("/api/reminders", methods=["GET"])
+def get_reminders():
+    data = read_json(REMINDERS_PATH) or []
+    active = [r for r in data if r.get("status") == "active"]
+    return jsonify(active)
+
+@app.route("/api/reminders/<int:rid>", methods=["DELETE"])
+def delete_reminder(rid):
+    data = read_json(REMINDERS_PATH) or []
+    for r in data:
+        if r["id"] == rid:
+            r["status"] = "deleted"
+    Path(REMINDERS_PATH).write_text(json.dumps(data, indent=2, ensure_ascii=False))
+    return jsonify({"ok": True})
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
 
