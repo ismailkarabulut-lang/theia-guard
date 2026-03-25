@@ -5,7 +5,7 @@ import threading
 import requests
 from pathlib import Path
 
-APPROVAL_FILE = Path("pending_approval.json")
+APPROVAL_FILE = Path.home() / "Masaüstü" / "theia-guard" / "pending_approval.json"
 
 def load_approval():
     if APPROVAL_FILE.exists():
